@@ -54,6 +54,8 @@ export function PageHeader({ title, description, action }: { title: string; desc
 
 const statusStyle: Record<OrderStatus, { label: string; tone: string }> = {
   paid: { label: 'Paid', tone: 'success' },
+  partially_refunded: { label: 'Partially refunded', tone: 'warning' },
+  refunded: { label: 'Refunded', tone: 'neutral' },
   cancelled: { label: 'Cancelled', tone: 'neutral' },
 };
 

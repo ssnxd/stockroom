@@ -1,6 +1,8 @@
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { RefundPanel } from '../components/RefundPanel';
 import { Card, CardHeader, ErrorAlert, Skeleton, StatusBadge } from '../components/ui';
 import { formatDateTime, formatMoney } from '../format';
 import { useApi } from '../useApi';
@@ -9,8 +11,11 @@ export function OrderDetailPage() {
   const id = Number(useParams().id);
   const location = useLocation();
   const justCreated = (location.state as { created?: boolean } | null)?.created;
-  const state = useApi((signal) => api.order(id, signal), [id]);
+  const [version, setVersion] = useState(0);
+  const [justRefunded, setJustRefunded] = useState(false);
+  const state = useApi((signal) => api.order(id, signal), [id, version]);
   const order = state.data;
+  const refundedTotal = order?.refunds.reduce((sum, r) => sum + Math.round(r.amount * 100), 0) ?? 0;
 
   return (
     <div className="page">
@@ -34,6 +39,12 @@ export function OrderDetailPage() {
         <div className="alert alert-success" role="status">
           <CheckCircle2 size={16} strokeWidth={1.75} aria-hidden />
           <span>Order created.</span>
+        </div>
+      )}
+      {justRefunded && (
+        <div className="alert alert-success" role="status">
+          <CheckCircle2 size={16} strokeWidth={1.75} aria-hidden />
+          <span>Refund recorded.</span>
         </div>
       )}
       {state.status === 'error' && <ErrorAlert message={state.error.message} />}
@@ -66,7 +77,12 @@ export function OrderDetailPage() {
                       <div className="cell-secondary">{item.sku}</div>
                     </td>
                     <td className="align-right num">{formatMoney(item.unitPrice)}</td>
-                    <td className="align-right num">{item.quantity}</td>
+                    <td className="align-right num">
+                      {item.quantity}
+                      {item.refundedQuantity > 0 && (
+                        <div className="cell-secondary">{item.refundedQuantity} refunded</div>
+                      )}
+                    </td>
                     <td className="align-right num cell-primary">{formatMoney(item.lineTotal)}</td>
                   </tr>
                 ))}
@@ -93,12 +109,52 @@ export function OrderDetailPage() {
                     <span>Total</span>
                     <strong>{formatMoney(order.total)}</strong>
                   </div>
+                  {refundedTotal > 0 && (
+                    <>
+                      <div className="summary-row">
+                        <span>Refunded</span>
+                        <strong>-{formatMoney(refundedTotal / 100)}</strong>
+                      </div>
+                      <div className="summary-row total">
+                        <span>Net</span>
+                        <strong>{formatMoney(order.total - refundedTotal / 100)}</strong>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <Skeleton height={80} />
               )}
             </div>
           </Card>
+          {order && (order.status === 'paid' || order.status === 'partially_refunded') && (
+            <RefundPanel
+              order={order}
+              onRefunded={() => {
+                setJustRefunded(true);
+                setVersion((v) => v + 1);
+              }}
+            />
+          )}
+          {order && order.refunds.length > 0 && (
+            <Card>
+              <CardHeader title="Refund history" />
+              <div className="card-body refund-history">
+                {order.refunds.map((refund) => (
+                  <div key={refund.id} className="refund-history-item">
+                    <div className="summary-row">
+                      <span>{formatDateTime(refund.createdAt)}</span>
+                      <strong>{formatMoney(refund.amount)}</strong>
+                    </div>
+                    <div className="cell-secondary">
+                      {refund.items.map((i) => `${i.quantity} × ${i.name}`).join(', ')}
+                    </div>
+                    {refund.reason && <div className="cell-secondary">“{refund.reason}”</div>}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
           <Card>
             <CardHeader title="Customer" />
             <div className="card-body">

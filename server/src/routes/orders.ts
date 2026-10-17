@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { HttpError } from '../errors';
 import { createOrder, getOrder, listOrders } from '../services/orders';
+import { refundRoutes } from './refunds';
 
 const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -25,6 +26,8 @@ const createOrderBody = z.object({
 });
 
 export const orderRoutes: FastifyPluginAsync = async (app) => {
+  app.register(refundRoutes, { prefix: '/:id/refunds' });
+
   app.get('/', async (request) => {
     const { limit } = listQuery.parse(request.query);
     return { orders: await listOrders(limit) };

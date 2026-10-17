@@ -3,6 +3,7 @@
  * six weeks of orders. Deterministic: the same seed gives the same data (relative to today).
  */
 import { pool } from '../src/db';
+import { percentOfCents, toCents } from '../src/money';
 
 function mulberry32(seed: number) {
   return () => {
@@ -62,7 +63,8 @@ async function seed() {
     for (const group of catalogAdded) {
       for (let i = 0; i < group.size; i++, index++) {
         const isHoodieDrop = index === catalog.length;
-        const [name, price] = isHoodieDrop ? ['Limited Edition Hoodie', 64.0] : catalog[index];
+        const [name, dollars] = isHoodieDrop ? ['Limited Edition Hoodie', 64.0] : catalog[index];
+        const price = toCents(dollars);
         const sku = isHoodieDrop ? 'LTD-HOODIE' : `SKU-${String(1000 + index)}`;
         const stock = isHoodieDrop ? 5 : [7, 18, 33].includes(index) ? between(1, 4) : between(15, 180);
         const { rows } = await client.query(
@@ -112,7 +114,7 @@ async function seed() {
 
         const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
         const useSummer = !bulkDays.has(daysAgo) && random() < 0.15;
-        const discountAmount = useSummer ? subtotal * 0.15 : 0;
+        const discountAmount = useSummer ? percentOfCents(subtotal, 15) : 0;
         const status = !bulkDays.has(daysAgo) && random() < 0.06 ? 'cancelled' : 'paid';
         if (useSummer) summerUses++;
 

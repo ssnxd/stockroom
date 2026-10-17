@@ -1,11 +1,11 @@
-import { AlertTriangle, BarChart3, DollarSign, ReceiptText, ShoppingBag } from 'lucide-react';
+import { AlertTriangle, BarChart3, DollarSign, ReceiptText, ShoppingBag, Undo2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { RevenueChart } from '../components/RevenueChart';
 import { TopProductsChart } from '../components/TopProductsChart';
 import { Card, CardHeader, EmptyState, ErrorAlert, PageHeader, Segmented, Skeleton } from '../components/ui';
-import { formatMoney, formatNumber } from '../format';
+import { formatMoney, formatNumber, formatPercent } from '../format';
 import { useApi } from '../useApi';
 
 const RANGES = [
@@ -48,7 +48,7 @@ export function DashboardPage() {
           label="Revenue"
           icon={<DollarSign {...iconProps} />}
           value={data && formatMoney(data.kpis.revenue)}
-          hint={`Last ${days} days`}
+          hint={`Net of refunds, last ${days} days`}
         />
         <Kpi
           label="Orders"
@@ -63,6 +63,17 @@ export function DashboardPage() {
           hint="Revenue per order"
         />
         <Kpi
+          label="Refund rate"
+          icon={<Undo2 {...iconProps} />}
+          value={data && (data.kpis.refundRate === null ? '—' : formatPercent(data.kpis.refundRate))}
+          hint={
+            data &&
+            `${formatMoney(data.kpis.refunds)} refunded in ${formatNumber(data.kpis.refundCount)} ${
+              data.kpis.refundCount === 1 ? 'refund' : 'refunds'
+            }`
+          }
+        />
+        <Kpi
           label="Low stock"
           icon={<AlertTriangle {...iconProps} />}
           value={data && formatNumber(data.kpis.lowStockProducts)}
@@ -72,11 +83,11 @@ export function DashboardPage() {
 
       <div className="chart-grid">
         <Card>
-          <CardHeader title="Revenue" subtitle="Daily revenue from paid orders" />
+          <CardHeader title="Revenue" subtitle="Daily revenue net of refunds, refunds below the line" />
           <div className="card-body">
             {!data ? (
               <Skeleton height={280} />
-            ) : data.revenueByDay.length === 0 ? (
+            ) : data.kpis.orders === 0 && data.kpis.refundCount === 0 ? (
               <EmptyState icon={BarChart3} title="No orders yet" description="Revenue will show up here." />
             ) : (
               <RevenueChart data={data.revenueByDay} />
