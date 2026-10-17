@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { pool } from '../db';
+import { toDollars } from '../money';
 
 const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -35,7 +36,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         id: row.id,
         sku: row.sku,
         name: row.name,
-        price: row.price,
+        price: toDollars(row.price),
         stock: row.stock,
         createdAt: row.created_at.toISOString(),
       })),

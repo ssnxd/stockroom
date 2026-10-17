@@ -1,5 +1,6 @@
 import { config } from '../config';
 import { pool } from '../db';
+import { toDollars } from '../money';
 
 export interface DailyRevenue {
   day: string; // YYYY-MM-DD
@@ -25,7 +26,7 @@ export async function getDashboard(days: number): Promise<Dashboard> {
 
   const { rows: daily } = await pool.query(
     `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
-            SUM(total) AS revenue,
+            SUM(total)::float8 AS revenue,
             COUNT(*)::int AS orders
        FROM orders
       WHERE status <> 'cancelled'
@@ -35,19 +36,27 @@ export async function getDashboard(days: number): Promise<Dashboard> {
     [since],
   );
 
-  const revenueByDay: DailyRevenue[] = daily.map((row) => ({
-    day: row.day,
-    revenue: row.revenue,
-    orders: row.orders,
-    aov: row.revenue / row.orders,
+  // Arithmetic stays in integer cents; dollars appear only in the returned values.
+  const dailyCents = daily.map((row) => ({
+    day: row.day as string,
+    revenue: Number(row.revenue),
+    orders: row.orders as number,
+    aov: Math.round(Number(row.revenue) / row.orders),
   }));
 
-  const revenue = revenueByDay.reduce((sum, d) => sum + d.revenue, 0);
-  const orders = revenueByDay.reduce((sum, d) => sum + d.orders, 0);
+  const revenueByDay: DailyRevenue[] = dailyCents.map((d) => ({
+    day: d.day,
+    revenue: toDollars(d.revenue),
+    orders: d.orders,
+    aov: toDollars(d.aov),
+  }));
+
+  const revenue = toDollars(dailyCents.reduce((sum, d) => sum + d.revenue, 0));
+  const orders = dailyCents.reduce((sum, d) => sum + d.orders, 0);
   const averageOrderValue =
-    revenueByDay.length === 0
+    dailyCents.length === 0
       ? 0
-      : revenueByDay.reduce((sum, d) => sum + d.aov, 0) / revenueByDay.length;
+      : toDollars(Math.round(dailyCents.reduce((sum, d) => sum + d.aov, 0) / dailyCents.length));
 
   const { rows: stockRows } = await pool.query(
     'SELECT count(*)::int AS count FROM products WHERE stock <= $1',
@@ -55,7 +64,7 @@ export async function getDashboard(days: number): Promise<Dashboard> {
   );
 
   const { rows: top } = await pool.query(
-    `SELECT p.id, p.name, SUM(oi.quantity)::int AS units, SUM(oi.line_total) AS revenue
+    `SELECT p.id, p.name, SUM(oi.quantity)::int AS units, SUM(oi.line_total)::float8 AS revenue
        FROM order_items oi
        JOIN orders o ON o.id = oi.order_id
        JOIN products p ON p.id = oi.product_id
@@ -80,7 +89,7 @@ export async function getDashboard(days: number): Promise<Dashboard> {
       productId: row.id,
       name: row.name,
       units: row.units,
-      revenue: row.revenue,
+      revenue: toDollars(Number(row.revenue)),
     })),
   };
 }

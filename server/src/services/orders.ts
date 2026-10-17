@@ -1,5 +1,6 @@
 import { pool, withTransaction, type DbClient } from '../db';
 import { HttpError } from '../errors';
+import { percentOfCents, toDollars } from '../money';
 
 export interface CreateOrderInput {
   customerEmail: string;
@@ -49,10 +50,10 @@ function toOrder(row: OrderRow) {
     id: row.id,
     customerEmail: row.customer_email,
     status: row.status,
-    subtotal: row.subtotal,
+    subtotal: toDollars(row.subtotal),
     discountCode: row.discount_code,
-    discountAmount: row.discount_amount,
-    total: row.total,
+    discountAmount: toDollars(row.discount_amount),
+    total: toDollars(row.total),
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -91,8 +92,8 @@ export async function getOrder(id: number): Promise<OrderDetail | null> {
       sku: item.sku,
       name: item.name,
       quantity: item.quantity,
-      unitPrice: item.unit_price,
-      lineTotal: item.line_total,
+      unitPrice: toDollars(item.unit_price),
+      lineTotal: toDollars(item.line_total),
     })),
   };
 }
@@ -141,7 +142,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderDetail>
     if (input.discountCode) {
       const discount = await getValidDiscount(client, input.discountCode);
       discountCode = discount.code;
-      discountAmount = subtotal * (discount.percent_off / 100);
+      discountAmount = percentOfCents(subtotal, discount.percent_off);
       await client.query('UPDATE discount_codes SET used_count = used_count + 1 WHERE code = $1', [
         discount.code,
       ]);
