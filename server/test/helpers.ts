@@ -26,12 +26,16 @@ export async function createProduct(
   return rows[0] as { id: number; name: string; price: number; stock: number };
 }
 
-export async function createDiscountCode(code: string, percentOff: number, maxUses: number | null = null) {
-  await pool.query('INSERT INTO discount_codes (code, percent_off, max_uses) VALUES ($1, $2, $3)', [
-    code,
-    percentOff,
-    maxUses,
-  ]);
+export async function createDiscountCode(
+  code: string,
+  percentOff: number,
+  maxUses: number | null = null,
+  expiresAt: Date | null = null,
+) {
+  await pool.query(
+    'INSERT INTO discount_codes (code, percent_off, max_uses, expires_at) VALUES ($1, $2, $3, $4)',
+    [code, percentOff, maxUses, expiresAt],
+  );
 }
 
 export function postOrder(body: unknown) {

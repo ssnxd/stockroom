@@ -97,54 +97,73 @@ export async function getOrder(id: number): Promise<OrderDetail | null> {
   };
 }
 
-async function getValidDiscount(client: DbClient, code: string) {
-  const { rows } = await client.query('SELECT * FROM discount_codes WHERE code = $1', [
-    code.toUpperCase(),
-  ]);
-  const discount = rows[0];
+async function claimDiscount(client: DbClient, code: string) {
+  const normalized = code.toUpperCase();
+  const { rows } = await client.query(
+    `UPDATE discount_codes SET used_count = used_count + 1
+      WHERE code = $1
+        AND (max_uses IS NULL OR used_count < max_uses)
+        AND (expires_at IS NULL OR expires_at > now())
+      RETURNING code, percent_off`,
+    [normalized],
+  );
+  if (rows[0]) return rows[0] as { code: string; percent_off: number };
+
+  const { rows: existing } = await client.query(
+    'SELECT max_uses, used_count, expires_at FROM discount_codes WHERE code = $1',
+    [normalized],
+  );
+  const discount = existing[0];
   if (!discount) {
     throw new HttpError(400, 'Invalid discount code');
   }
-  if (discount.expires_at && discount.expires_at < new Date()) {
+  if (discount.expires_at && discount.expires_at <= new Date()) {
     throw new HttpError(400, 'Discount code has expired');
   }
-  if (discount.max_uses !== null && discount.used_count > discount.max_uses) {
-    throw new HttpError(400, 'Discount code has already been used');
+  throw new HttpError(400, 'Discount code has already been used');
+}
+
+async function claimStock(client: DbClient, productId: number, quantity: number) {
+  const { rows } = await client.query(
+    `UPDATE products SET stock = stock - $2
+      WHERE id = $1 AND stock >= $2
+      RETURNING id, name, price`,
+    [productId, quantity],
+  );
+  if (rows[0]) return rows[0] as { id: number; name: string; price: number };
+
+  const { rows: existing } = await client.query('SELECT name FROM products WHERE id = $1', [productId]);
+  if (!existing[0]) {
+    throw new HttpError(404, `Product ${productId} not found`);
   }
-  return discount as { code: string; percent_off: number };
+  throw new HttpError(409, `Not enough stock for ${existing[0].name}`);
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<OrderDetail> {
   const orderId = await withTransaction(async (client) => {
+    const quantities = new Map<number, number>();
+    for (const item of input.items) {
+      quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+    }
+    // Claim in a stable order so concurrent multi-product orders cannot deadlock.
+    const merged = [...quantities.entries()].sort(([a], [b]) => a - b);
+
     let subtotal = 0;
     const lines = [];
 
-    for (const item of input.items) {
-      const { rows } = await client.query(
-        'SELECT id, name, price, stock FROM products WHERE id = $1',
-        [item.productId],
-      );
-      const product = rows[0];
-      if (!product) {
-        throw new HttpError(404, `Product ${item.productId} not found`);
-      }
-      if (product.stock < item.quantity) {
-        throw new HttpError(409, `Not enough stock for ${product.name}`);
-      }
-      const lineTotal = product.price * item.quantity;
+    for (const [productId, quantity] of merged) {
+      const product = await claimStock(client, productId, quantity);
+      const lineTotal = product.price * quantity;
       subtotal += lineTotal;
-      lines.push({ product, quantity: item.quantity, lineTotal });
+      lines.push({ product, quantity, lineTotal });
     }
 
     let discountCode: string | null = null;
     let discountAmount = 0;
     if (input.discountCode) {
-      const discount = await getValidDiscount(client, input.discountCode);
+      const discount = await claimDiscount(client, input.discountCode);
       discountCode = discount.code;
       discountAmount = subtotal * (discount.percent_off / 100);
-      await client.query('UPDATE discount_codes SET used_count = used_count + 1 WHERE code = $1', [
-        discount.code,
-      ]);
     }
 
     const total = subtotal - discountAmount;
@@ -163,10 +182,6 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderDetail>
          VALUES ($1, $2, $3, $4, $5)`,
         [id, line.product.id, line.quantity, line.product.price, line.lineTotal],
       );
-      await client.query('UPDATE products SET stock = $1 WHERE id = $2', [
-        line.product.stock - line.quantity,
-        line.product.id,
-      ]);
     }
 
     return id;
