@@ -18,6 +18,7 @@ const shortDay = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeri
 export const formatMoney = (value: number) => currency.format(value);
 export const formatMoneyCompact = (value: number) => compactCurrency.format(value);
 export const formatNumber = (value: number) => integer.format(value);
+export const formatPercent = (value: number) => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value)}%`;
 export const formatDateTime = (iso: string) => dateTime.format(new Date(iso));
 export const formatDate = (iso: string) => date.format(new Date(iso));
 

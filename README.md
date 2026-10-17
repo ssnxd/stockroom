@@ -60,8 +60,10 @@ web/
 | GET | `/api/dashboard?days=30` | KPIs, revenue by day, top products |
 | GET | `/api/products?limit=20&cursor=...` | Cursor-paginated catalog |
 | GET | `/api/orders` | 50 most recent orders |
-| GET | `/api/orders/:id` | Order with line items |
+| GET | `/api/orders/:id` | Order with line items, refunds and derived status (`paid`, `partially_refunded`, `refunded`, `cancelled`) |
 | POST | `/api/orders` | `{ customerEmail, items: [{ productId, quantity }], discountCode? }` |
+| POST | `/api/orders/:id/refunds/preview` | `{ items: [{ orderItemId, quantity }] }`, returns the amount without refunding |
+| POST | `/api/orders/:id/refunds` | `{ items: [{ orderItemId, quantity }], reason? }`, refunds, restocks, returns the order |
 
 ## Design
 

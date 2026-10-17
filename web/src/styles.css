@@ -268,7 +268,7 @@ h3 {
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -800,4 +800,44 @@ h3 {
   .button:active:not(:disabled) {
     scale: none;
   }
+}
+
+/* ---------- Refunds ---------- */
+
+.refund-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 8px;
+  align-items: center;
+}
+
+.refund-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+
+.refund-confirm p {
+  margin: 0;
+}
+
+.refund-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.refund-history {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.refund-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
