@@ -76,7 +76,7 @@ export function DashboardPage() {
           <div className="card-body">
             {!data ? (
               <Skeleton height={280} />
-            ) : data.revenueByDay.length === 0 ? (
+            ) : data.kpis.orders === 0 ? (
               <EmptyState icon={BarChart3} title="No orders yet" description="Revenue will show up here." />
             ) : (
               <RevenueChart data={data.revenueByDay} />

@@ -37,3 +37,15 @@ export async function createDiscountCode(code: string, percentOff: number, maxUs
 export function postOrder(body: unknown) {
   return app.inject({ method: 'POST', url: '/api/orders', payload: body as object });
 }
+
+export async function createOrderRow(
+  total: number,
+  createdAt: Date,
+  status: 'paid' | 'cancelled' = 'paid',
+) {
+  await pool.query(
+    `INSERT INTO orders (customer_email, status, subtotal, discount_amount, total, created_at)
+     VALUES ('seed@example.com', $1, $2, 0, $2, $3)`,
+    [status, total, createdAt],
+  );
+}
